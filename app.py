@@ -2,65 +2,52 @@ import numpy as np
 from scipy.optimize import linprog
 import streamlit as st
 
+# Function to get transportation cost matrix
 def get_cost_matrix(facilities, warehouses):
     cost_matrix = []
     for facility in facilities.keys():
         cost_input = st.text_input(
-            f"Enter the transportation costs from {facility} to each warehouse separated by commas (in order: {', '.join(warehouses.keys())})"
+            f"Enter the transportation costs from {facility} to each warehouse separated by commas (in order: {', '.join(warehouses.keys())})",
+            key=f"cost_{facility}"  # Using unique keys to store values in session_state
         )
-        
-        # Check if the input is empty
-        if not cost_input:
-            st.warning(f"Waiting for transportation costs for {facility}.")
-            return None
-
-        try:
-            # Split the input by commas and convert to float
+        if cost_input:
             cost_input = [float(x.strip()) for x in cost_input.split(',')]
-        except ValueError:
-            st.error(f"Error: Please enter valid numeric values separated by commas for {facility}.")
-            return None
-
-        # Ensure the correct number of cost inputs are provided
-        if len(cost_input) != len(warehouses):
-            st.error(f"Error: You must enter {len(warehouses)} cost values for {facility}.")
-            return None
-
-        cost_matrix.append(cost_input)
-    
+            if len(cost_input) != len(warehouses):
+                st.error(f"Error: You must enter {len(warehouses)} cost values for {facility}.")
+                return None
+            cost_matrix.append(cost_input)
     return np.array(cost_matrix)
 
+# Function to solve the transportation problem
 def transportation_problem_solver():
     st.title("Transportation Problem Solver")
     
-    # Get number of facilities
-    num_facilities = st.number_input("Enter the number of facilities:", min_value=1, step=1)
+    # Inputs for facilities and warehouses
+    num_facilities = st.number_input("Enter the number of facilities:", min_value=1, step=1, key="num_facilities")
     facilities = {}
     
-    # Get facilities names and capacities
     for i in range(1, num_facilities + 1):
-        facility_name = st.text_input(f"Enter Facility {i} name:")
-        facility_capacity = st.number_input(f"Enter Facility {i} capacity:", min_value=0.0, step=1.0)
+        facility_name = st.text_input(f"Enter Facility {i} name:", key=f"facility_{i}_name")
+        facility_capacity = st.number_input(f"Enter Facility {i} capacity:", min_value=0.0, step=1.0, key=f"facility_{i}_capacity")
         facilities[facility_name] = facility_capacity
     
-    # Get number of warehouses
-    num_warehouses = st.number_input("Enter the number of warehouses:", min_value=1, step=1)
+    num_warehouses = st.number_input("Enter the number of warehouses:", min_value=1, step=1, key="num_warehouses")
     warehouses = {}
-    
-    # Get warehouse names and demands
+
     for i in range(1, num_warehouses + 1):
-        warehouse_name = st.text_input(f"Enter Warehouse {i} name:")
-        warehouse_demand = st.number_input(f"Enter Warehouse {i} demand:", min_value=0.0, step=1.0)
+        warehouse_name = st.text_input(f"Enter Warehouse {i} name:", key=f"warehouse_{i}_name")
+        warehouse_demand = st.number_input(f"Enter Warehouse {i} demand:", min_value=0.0, step=1.0, key=f"warehouse_{i}_demand")
         warehouses[warehouse_name] = warehouse_demand
     
-    # Add a submit button
+    # Submit button to finalize inputs
     if st.button("Submit"):
-        # Get the transportation cost matrix
+        # Fetch the transportation cost matrix
         cost_matrix = get_cost_matrix(facilities, warehouses)
+        
         if cost_matrix is None:
             return
         
-        # Define supply and demand
+        # Supply and demand values
         supply = list(facilities.values())
         demand = list(warehouses.values())
         
@@ -69,14 +56,14 @@ def transportation_problem_solver():
             st.error(f"Error: Total supply {sum(supply)} does not match total demand {sum(demand)}.")
             return
         
-        # Create the coefficient matrix for the linear programming problem
+        # Create the coefficient matrix for linear programming
         num_facilities = len(facilities)
         num_warehouses = len(warehouses)
         
         # Objective function (minimize cost)
-        c = cost_matrix.flatten()  # Flatten cost matrix to 1D array
+        c = cost_matrix.flatten()
         
-        # Constraints: supply from facilities and demand from warehouses
+        # Constraints
         A_eq = []
         for i in range(num_facilities):
             supply_constraint = [0] * num_facilities * num_warehouses
@@ -95,7 +82,7 @@ def transportation_problem_solver():
         # Bounds for each variable (non-negative shipments)
         x_bounds = [(0, None) for _ in range(num_facilities * num_warehouses)]
         
-        # Solve the transportation problem using the simplex method
+        # Solve the problem
         result = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=x_bounds, method='highs')
         
         if result.success:
