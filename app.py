@@ -1,4 +1,3 @@
-
 import numpy as np
 from scipy.optimize import linprog
 import streamlit as st
@@ -9,11 +8,26 @@ def get_cost_matrix(facilities, warehouses):
         cost_input = st.text_input(
             f"Enter the transportation costs from {facility} to each warehouse separated by commas (in order: {', '.join(warehouses.keys())})"
         )
-        cost_input = [float(x.strip()) for x in cost_input.split(',')]
+        
+        # Check if the input is empty
+        if not cost_input:
+            st.warning(f"Waiting for transportation costs for {facility}.")
+            return None
+
+        try:
+            # Split the input by commas and convert to float
+            cost_input = [float(x.strip()) for x in cost_input.split(',')]
+        except ValueError:
+            st.error(f"Error: Please enter valid numeric values separated by commas for {facility}.")
+            return None
+
+        # Ensure the correct number of cost inputs are provided
         if len(cost_input) != len(warehouses):
             st.error(f"Error: You must enter {len(warehouses)} cost values for {facility}.")
             return None
+
         cost_matrix.append(cost_input)
+    
     return np.array(cost_matrix)
 
 def transportation_problem_solver():
@@ -39,57 +53,59 @@ def transportation_problem_solver():
         warehouse_demand = st.number_input(f"Enter Warehouse {i} demand:", min_value=0.0, step=1.0)
         warehouses[warehouse_name] = warehouse_demand
     
-    # Get the transportation cost matrix
-    cost_matrix = get_cost_matrix(facilities, warehouses)
-    if cost_matrix is None:
-        return
-    
-    # Define supply and demand
-    supply = list(facilities.values())
-    demand = list(warehouses.values())
-    
-    # Check if the supply matches the demand
-    if sum(supply) != sum(demand):
-        st.error(f"Error: Total supply {sum(supply)} does not match total demand {sum(demand)}.")
-        return
-    
-    # Create the coefficient matrix for the linear programming problem
-    num_facilities = len(facilities)
-    num_warehouses = len(warehouses)
-    
-    # Objective function (minimize cost)
-    c = cost_matrix.flatten()  # Flatten cost matrix to 1D array
-    
-    # Constraints: supply from facilities and demand from warehouses
-    A_eq = []
-    for i in range(num_facilities):
-        supply_constraint = [0] * num_facilities * num_warehouses
-        for j in range(num_warehouses):
-            supply_constraint[i * num_warehouses + j] = 1
-        A_eq.append(supply_constraint)
-    
-    for j in range(num_warehouses):
-        demand_constraint = [0] * num_facilities * num_warehouses
+    # Add a submit button
+    if st.button("Submit"):
+        # Get the transportation cost matrix
+        cost_matrix = get_cost_matrix(facilities, warehouses)
+        if cost_matrix is None:
+            return
+        
+        # Define supply and demand
+        supply = list(facilities.values())
+        demand = list(warehouses.values())
+        
+        # Check if the supply matches the demand
+        if sum(supply) != sum(demand):
+            st.error(f"Error: Total supply {sum(supply)} does not match total demand {sum(demand)}.")
+            return
+        
+        # Create the coefficient matrix for the linear programming problem
+        num_facilities = len(facilities)
+        num_warehouses = len(warehouses)
+        
+        # Objective function (minimize cost)
+        c = cost_matrix.flatten()  # Flatten cost matrix to 1D array
+        
+        # Constraints: supply from facilities and demand from warehouses
+        A_eq = []
         for i in range(num_facilities):
-            demand_constraint[i * num_warehouses + j] = 1
-        A_eq.append(demand_constraint)
-    
-    b_eq = supply + demand
-    
-    # Bounds for each variable (non-negative shipments)
-    x_bounds = [(0, None) for _ in range(num_facilities * num_warehouses)]
-    
-    # Solve the transportation problem using the simplex method
-    result = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=x_bounds, method='highs')
-    
-    if result.success:
-        st.success("Optimal solution found!")
-        solution_matrix = result.x.reshape((num_facilities, num_warehouses))
-        st.write("Optimal Transport Plan:")
-        st.write(solution_matrix)
-        st.write(f"Total Minimum Cost: {result.fun}")
-    else:
-        st.error(f"Error solving the transportation problem: {result.message}")
+            supply_constraint = [0] * num_facilities * num_warehouses
+            for j in range(num_warehouses):
+                supply_constraint[i * num_warehouses + j] = 1
+            A_eq.append(supply_constraint)
+        
+        for j in range(num_warehouses):
+            demand_constraint = [0] * num_facilities * num_warehouses
+            for i in range(num_facilities):
+                demand_constraint[i * num_warehouses + j] = 1
+            A_eq.append(demand_constraint)
+        
+        b_eq = supply + demand
+        
+        # Bounds for each variable (non-negative shipments)
+        x_bounds = [(0, None) for _ in range(num_facilities * num_warehouses)]
+        
+        # Solve the transportation problem using the simplex method
+        result = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=x_bounds, method='highs')
+        
+        if result.success:
+            st.success("Optimal solution found!")
+            solution_matrix = result.x.reshape((num_facilities, num_warehouses))
+            st.write("Optimal Transport Plan:")
+            st.write(solution_matrix)
+            st.write(f"Total Minimum Cost: {result.fun}")
+        else:
+            st.error(f"Error solving the transportation problem: {result.message}")
 
 if __name__ == "__main__":
     transportation_problem_solver()
